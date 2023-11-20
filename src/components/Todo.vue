@@ -5,18 +5,56 @@ import {
   TrashIcon,
   ClockIcon,
 } from "@heroicons/vue/24/outline";
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
+import { initializeApp } from "firebase/app";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  doc,
+  deleteDoc,
+} from "firebase/firestore";
+
+//firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCDYfrEjdakAZMLXuOv3wZxqLThY9XNhmg",
+  authDomain: "vue-todo-app-d4c1d.firebaseapp.com",
+  databaseURL: "https://vue-todo-app-d4c1d-default-rtdb.firebaseio.com",
+  projectId: "vue-todo-app-d4c1d",
+  storageBucket: "vue-todo-app-d4c1d.appspot.com",
+  messagingSenderId: "145371674090",
+  appId: "1:145371674090:web:2951ded83c65f9083b2e93",
+  measurementId: "G-VZVVEJ6289",
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+//app code
 let todoList = ref([]);
+console.log(todoList, "todoList");
 let todo = ref(null);
-const addTodo = () => {
+//Add Todo
+const addTodo = async () => {
   if (validateTodo(todo.value)) {
-    let id = todoList.value.length;
-    todoList.value.push({
-      id: ++id,
-      todo: todo.value,
-      is_done: false,
-    });
-    todo.value = null;
+    try {
+      // Add the new todo to Firebase Firestore
+      const docRef = await addDoc(collection(db, "todoList"), {
+        todo: todo.value,
+      });
+      // Update the local todoList with the added todo from Firestore
+      todoList.value.push({
+        id: docRef.id,
+        todo: todo.value,
+        is_done: false,
+      });
+      // Clear the input field
+      todo.value = null;
+      alert("Item added successfully.");
+    } catch (error) {
+      console.error("Error adding todo:", error);
+    }
   }
 };
 let selectedTodo = ref(null);
@@ -24,31 +62,103 @@ const selectTodo = (row) => {
   selectedTodo.value = row;
   todo.value = row.todo;
 };
-const updateTodo = () => {
+//Update Todo
+const updateTodo = async () => {
   if (validateTodo(todo.value)) {
-    let index = todoList.value.findIndex((t) => t.id === selectedTodo.value.id);
-    index !== -1 && (todoList.value[index].todo = todo.value);
-    todo.value = selectedTodo.value = null;
+    try {
+      // Find the index of the selected todo in the local todoList
+      const index = todoList.value.findIndex(
+        (t) => t.id === selectedTodo.value.id
+      );
+      // If the selected todo is found, update it in Firebase Firestore
+      if (index !== -1) {
+        const todoRef = doc(db, "todoList", selectedTodo.value.id);
+        await updateDoc(todoRef, { todo: todo.value });
+        // Update the local todoList with the modified todo
+        todoList.value[index].todo = todo.value;
+      }
+      // Clear the input field and selectedTodo
+      todo.value = selectedTodo.value = null;
+      alert("Item updated successfully.");
+    } catch (error) {
+      console.error("Error updating todo:", error);
+    }
   }
 };
-
-const markAsDone = (row) => {
+//Mark as done todo
+const markAsDone = async (row) => {
   if (confirm(`Are you sure you want to mark ${row.todo} as done`)) {
-    let index = todoList.value.findIndex((t) => t.id === row.id);
-    index !== -1 && (todoList.value[index].is_done = true);
+    try {
+      // Find the index of the todo in the local todoList
+      const index = todoList.value.findIndex((t) => t.id === row.id);
+      // If the todo is found, update the "is_done" property in Firebase Firestore
+      if (index !== -1) {
+        const todoRef = doc(db, "todoList", row.id);
+        await updateDoc(todoRef, { is_done: true });
+        // Update the local todoList with the modified todo
+        todoList.value[index].is_done = true;
+      }
+      alert("Item moved to Mark as Done.");
+    } catch (error) {
+      console.error("Error marking todo as done:", error);
+    }
   }
 };
-const removeTode = (row) => {
-  if (confirm(`Are you sure you want to de;ete ${row.todo} ?`)) {
-    let index = todoList.value.findIndex((t) => t.id === row.id);
-    index !== -1 && todoList.value.splice(index, 1);
+//Delete Todo
+const removeTode = async (row) => {
+  if (confirm(`Are you sure you want to delete ${row.todo} ?`)) {
+    try {
+      // Find the index of the todo in the local todoList
+      const index = todoList.value.findIndex((t) => t.id === row.id);
+      // If the todo is found, delete it from Firebase Firestore
+      if (index !== -1) {
+        const todoRef = doc(db, "todoList", row.id);
+        await deleteDoc(todoRef);
+        // Remove the todo from the local todoList
+        todoList.value.splice(index, 1);
+      }
+      alert("Item deleted successfully.");
+    } catch (error) {
+      console.error("Error deleting todo:", error);
+    }
   }
 };
-const clearCompletedTasks = () => {
-  todoList.value = todoList.value.filter((task) => !task.is_done);
+// Clear all done todos
+const clearCompletedTasks = async () => {
+  try {
+    // Get the IDs of completed tasks
+    const completedTaskIds = todoList.value
+      .filter((task) => task.is_done)
+      .map((task) => task.id);
+    // Delete the corresponding documents from Firebase Firestore
+    for (const taskId of completedTaskIds) {
+      const todoRef = doc(db, "todoList", taskId);
+      await deleteDoc(todoRef);
+    }
+    // Update the local todoList by filtering out completed tasks
+    todoList.value = todoList.value.filter((task) => !task.is_done);
+    alert("All Marked Item Clear successfully.");
+  } catch (error) {
+    console.error("Error clearing completed tasks:", error);
+  }
 };
-const resetTodoList = () => {
-  todoList.value = [];
+// Delete All Todos
+const resetTodoList = async () => {
+  if (confirm("Are you sure you want to delete all todos?")) {
+    try {
+      // Delete all documents in the "todoList" collection in Firebase Firestore
+      const querySnapshot = await getDocs(collection(db, "todoList"));
+      querySnapshot.forEach(async (todoDoc) => {
+        const todoRef = doc(db, "todoList", todoDoc.id);
+        await deleteDoc(todoRef);
+      });
+      // Clear the local todoList
+      todoList.value = [];
+      alert("All Items Deleted successfully.");
+    } catch (error) {
+      console.error("Error deleting all todos:", error);
+    }
+  }
 };
 const validateTodo = (new_todo) => {
   let index = todoList.value.findIndex((t) => t.todo === new_todo);
@@ -58,6 +168,22 @@ const validateTodo = (new_todo) => {
   } else {
     return true;
   }
+};
+onMounted(async () => {
+  await refreshData();
+});
+
+const refreshData = async () => {
+  todoList.value = [];
+  const querySnapshot = await getDocs(collection(db, "todoList"));
+  querySnapshot.forEach((doc) => {
+    const data = doc.data();
+    todoList.value.push({
+      id: doc.id,
+      todo: data.todo,
+      is_done: data.is_done || false,
+    });
+  });
 };
 </script>
 
