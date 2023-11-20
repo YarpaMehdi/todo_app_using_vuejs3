@@ -16,24 +16,10 @@ import {
   doc,
   deleteDoc,
 } from "firebase/firestore";
+import { db } from "../config/firebaseConfig";
 
-//firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCDYfrEjdakAZMLXuOv3wZxqLThY9XNhmg",
-  authDomain: "vue-todo-app-d4c1d.firebaseapp.com",
-  databaseURL: "https://vue-todo-app-d4c1d-default-rtdb.firebaseio.com",
-  projectId: "vue-todo-app-d4c1d",
-  storageBucket: "vue-todo-app-d4c1d.appspot.com",
-  messagingSenderId: "145371674090",
-  appId: "1:145371674090:web:2951ded83c65f9083b2e93",
-  measurementId: "G-VZVVEJ6289",
-};
-
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp);
 //app code
 let todoList = ref([]);
-console.log(todoList, "todoList");
 let todo = ref(null);
 //Add Todo
 const addTodo = async () => {
